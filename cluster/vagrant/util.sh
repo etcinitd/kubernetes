@@ -34,6 +34,21 @@ function detect-minions {
 # Verify prereqs on host machine  Also sets exports USING_KUBE_SCRIPTS=true so
 # that our Vagrantfile doesn't error out.
 function verify-prereqs {
+  # Put VirtualBox on path for Windows installations
+  if [ -n "${VBOX_MSI_INSTALL_PATH+1}" ]; then
+    export PATH="${VBOX_MSI_INSTALL_PATH}:${PATH}"
+  fi
+  # Use a different 'tmp' folder for Cygwin and Msys
+  # otherwise Vagrant gets confused.
+  osname=$(uname -o)
+  if [ ${osname} = "Cygwin" ]; then
+    $(mkdir -p c:/tmp/kube)
+    export KUBE_TEMP="c:/tmp/kube"
+  elif [ ${osname} = "Msys" ]; then
+    $(mkdir -p /c/tmp/kube)
+    export KUBE_TEMP="/c/tmp/kube"
+  fi
+
   for x in vagrant; do
     if ! which "$x" >/dev/null; then
       echo "Can't find $x in PATH, please fix and retry."
