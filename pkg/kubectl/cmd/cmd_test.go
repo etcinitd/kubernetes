@@ -18,23 +18,26 @@ package cmd
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
 	"os"
 	"reflect"
 	"testing"
+	"time"
 
-	"github.com/GoogleCloudPlatform/kubernetes/pkg/api"
-	"github.com/GoogleCloudPlatform/kubernetes/pkg/api/latest"
-	"github.com/GoogleCloudPlatform/kubernetes/pkg/api/meta"
-	"github.com/GoogleCloudPlatform/kubernetes/pkg/api/testapi"
-	"github.com/GoogleCloudPlatform/kubernetes/pkg/api/validation"
-	"github.com/GoogleCloudPlatform/kubernetes/pkg/client"
-	"github.com/GoogleCloudPlatform/kubernetes/pkg/kubectl"
-	cmdutil "github.com/GoogleCloudPlatform/kubernetes/pkg/kubectl/cmd/util"
-	"github.com/GoogleCloudPlatform/kubernetes/pkg/kubectl/resource"
-	"github.com/GoogleCloudPlatform/kubernetes/pkg/runtime"
+	"k8s.io/kubernetes/pkg/api"
+	"k8s.io/kubernetes/pkg/api/latest"
+	"k8s.io/kubernetes/pkg/api/meta"
+	"k8s.io/kubernetes/pkg/api/testapi"
+	"k8s.io/kubernetes/pkg/api/validation"
+	"k8s.io/kubernetes/pkg/client"
+	"k8s.io/kubernetes/pkg/kubectl"
+	cmdutil "k8s.io/kubernetes/pkg/kubectl/cmd/util"
+	"k8s.io/kubernetes/pkg/kubectl/resource"
+	"k8s.io/kubernetes/pkg/runtime"
+	"k8s.io/kubernetes/pkg/util"
 )
 
 type internalType struct {
@@ -62,6 +65,15 @@ func (*internalType) IsAnAPIObject()  {}
 func (*externalType) IsAnAPIObject()  {}
 func (*ExternalType2) IsAnAPIObject() {}
 
+var versionErr = errors.New("not a version")
+
+func versionErrIfFalse(b bool) error {
+	if b {
+		return nil
+	}
+	return versionErr
+}
+
 func newExternalScheme() (*runtime.Scheme, meta.RESTMapper, runtime.Codec) {
 	scheme := runtime.NewScheme()
 	scheme.AddKnownTypeWithName("", "Type", &internalType{})
@@ -71,12 +83,12 @@ func newExternalScheme() (*runtime.Scheme, meta.RESTMapper, runtime.Codec) {
 
 	codec := runtime.CodecFor(scheme, "unlikelyversion")
 	validVersion := testapi.Version()
-	mapper := meta.NewDefaultRESTMapper([]string{"unlikelyversion", validVersion}, func(version string) (*meta.VersionInterfaces, bool) {
+	mapper := meta.NewDefaultRESTMapper("apitest", []string{"unlikelyversion", validVersion}, func(version string) (*meta.VersionInterfaces, error) {
 		return &meta.VersionInterfaces{
 			Codec:            runtime.CodecFor(scheme, version),
 			ObjectConvertor:  scheme,
 			MetadataAccessor: meta.NewAccessor(),
-		}, (version == validVersion || version == "unlikelyversion")
+		}, versionErrIfFalse(version == validVersion || version == "unlikelyversion")
 	})
 	for _, version := range []string{"unlikelyversion", validVersion} {
 		for kind := range scheme.KnownTypes(version) {
@@ -175,7 +187,8 @@ func NewAPIFactory() (*cmdutil.Factory, *testFactory, runtime.Codec) {
 	}
 	generators := map[string]kubectl.Generator{
 		"run/v1":     kubectl.BasicReplicationController{},
-		"service/v1": kubectl.ServiceGenerator{},
+		"service/v1": kubectl.ServiceGeneratorV1{},
+		"service/v2": kubectl.ServiceGeneratorV2{},
 	}
 	return &cmdutil.Factory{
 		Object: func() (meta.RESTMapper, runtime.ObjectTyper) {
@@ -248,12 +261,13 @@ func ExamplePrintReplicationControllerWithNamespace() {
 		Codec:  codec,
 		Client: nil,
 	}
-	cmd := NewCmdRun(f, os.Stdout)
+	cmd := NewCmdRun(f, os.Stdin, os.Stdout, os.Stderr)
 	ctrl := &api.ReplicationController{
 		ObjectMeta: api.ObjectMeta{
-			Name:      "foo",
-			Namespace: "beep",
-			Labels:    map[string]string{"foo": "bar"},
+			Name:              "foo",
+			Namespace:         "beep",
+			Labels:            map[string]string{"foo": "bar"},
+			CreationTimestamp: util.Time{Time: time.Now().AddDate(-10, 0, 0)},
 		},
 		Spec: api.ReplicationControllerSpec{
 			Replicas: 1,
@@ -278,8 +292,8 @@ func ExamplePrintReplicationControllerWithNamespace() {
 		fmt.Printf("Unexpected error: %v", err)
 	}
 	// Output:
-	// NAMESPACE   CONTROLLER   CONTAINER(S)   IMAGE(S)    SELECTOR   REPLICAS
-	// beep        foo          foo            someimage   foo=bar    1
+	// NAMESPACE   CONTROLLER   CONTAINER(S)   IMAGE(S)    SELECTOR   REPLICAS   AGE
+	// beep        foo          foo            someimage   foo=bar    1          10y
 }
 
 func ExamplePrintPodWithWideFormat() {
@@ -290,9 +304,12 @@ func ExamplePrintPodWithWideFormat() {
 		Client: nil,
 	}
 	nodeName := "kubernetes-minion-abcd"
-	cmd := NewCmdRun(f, os.Stdout)
-	ctrl := &api.Pod{
-		ObjectMeta: api.ObjectMeta{Name: "test1"},
+	cmd := NewCmdRun(f, os.Stdin, os.Stdout, os.Stderr)
+	pod := &api.Pod{
+		ObjectMeta: api.ObjectMeta{
+			Name:              "test1",
+			CreationTimestamp: util.Time{Time: time.Now().AddDate(-10, 0, 0)},
+		},
 		Spec: api.PodSpec{
 			Containers: make([]api.Container, 2),
 			NodeName:   nodeName,
@@ -305,16 +322,82 @@ func ExamplePrintPodWithWideFormat() {
 			},
 		},
 	}
-	err := f.PrintObject(cmd, ctrl, os.Stdout)
+	err := f.PrintObject(cmd, pod, os.Stdout)
 	if err != nil {
 		fmt.Printf("Unexpected error: %v", err)
 	}
 	// Output:
 	// NAME      READY     STATUS     RESTARTS   AGE       NODE
-	// test1     1/2       podPhase   6          292y      kubernetes-minion-abcd
+	// test1     1/2       podPhase   6          10y       kubernetes-minion-abcd
 }
 
-func TestNormalizationFuncGlobalExistance(t *testing.T) {
+func ExamplePrintServiceWithNamespacesAndLabels() {
+	f, tf, codec := NewAPIFactory()
+	tf.Printer = kubectl.NewHumanReadablePrinter(false, true, false, []string{"l1"})
+	tf.Client = &client.FakeRESTClient{
+		Codec:  codec,
+		Client: nil,
+	}
+	cmd := NewCmdRun(f, os.Stdin, os.Stdout, os.Stderr)
+	svc := &api.ServiceList{
+		Items: []api.Service{
+			{
+				ObjectMeta: api.ObjectMeta{
+					Name:              "svc1",
+					Namespace:         "ns1",
+					CreationTimestamp: util.Time{Time: time.Now().AddDate(-10, 0, 0)},
+					Labels: map[string]string{
+						"l1": "value",
+					},
+				},
+				Spec: api.ServiceSpec{
+					Ports: []api.ServicePort{
+						{Protocol: "UDP", Port: 53},
+						{Protocol: "TCP", Port: 53},
+					},
+					Selector: map[string]string{
+						"s": "magic",
+					},
+					ClusterIP: "10.1.1.1",
+				},
+				Status: api.ServiceStatus{},
+			},
+			{
+				ObjectMeta: api.ObjectMeta{
+					Name:              "svc2",
+					Namespace:         "ns2",
+					CreationTimestamp: util.Time{Time: time.Now().AddDate(-10, 0, 0)},
+					Labels: map[string]string{
+						"l1": "dolla-bill-yall",
+					},
+				},
+				Spec: api.ServiceSpec{
+					Ports: []api.ServicePort{
+						{Protocol: "TCP", Port: 80},
+						{Protocol: "TCP", Port: 8080},
+					},
+					Selector: map[string]string{
+						"s": "kazam",
+					},
+					ClusterIP: "10.1.1.2",
+				},
+				Status: api.ServiceStatus{},
+			}},
+	}
+	ld := util.NewLineDelimiter(os.Stdout, "|")
+	defer ld.Flush()
+	err := f.PrintObject(cmd, svc, ld)
+	if err != nil {
+		fmt.Printf("Unexpected error: %v", err)
+	}
+	// Output:
+	// |NAMESPACE   NAME      CLUSTER_IP   EXTERNAL_IP   PORT(S)           SELECTOR   AGE       L1|
+	// |ns1         svc1      10.1.1.1     unknown       53/UDP,53/TCP     s=magic    10y       value|
+	// |ns2         svc2      10.1.1.2     unknown       80/TCP,8080/TCP   s=kazam    10y       dolla-bill-yall|
+	// ||
+}
+
+func TestNormalizationFuncGlobalExistence(t *testing.T) {
 	// This test can be safely deleted when we will not support multiple flag formats
 	root := NewKubectlCommand(cmdutil.NewFactory(nil), os.Stdin, os.Stdout, os.Stderr)
 

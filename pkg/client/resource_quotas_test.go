@@ -20,11 +20,11 @@ import (
 	"net/url"
 	"testing"
 
-	"github.com/GoogleCloudPlatform/kubernetes/pkg/api"
-	"github.com/GoogleCloudPlatform/kubernetes/pkg/api/resource"
-	"github.com/GoogleCloudPlatform/kubernetes/pkg/api/testapi"
-	"github.com/GoogleCloudPlatform/kubernetes/pkg/fields"
-	"github.com/GoogleCloudPlatform/kubernetes/pkg/labels"
+	"k8s.io/kubernetes/pkg/api"
+	"k8s.io/kubernetes/pkg/api/resource"
+	"k8s.io/kubernetes/pkg/api/testapi"
+	"k8s.io/kubernetes/pkg/fields"
+	"k8s.io/kubernetes/pkg/labels"
 )
 
 func getResourceQuotasResoureName() string {
@@ -53,7 +53,7 @@ func TestResourceQuotaCreate(t *testing.T) {
 		Request: testRequest{
 			Method: "POST",
 			Path:   testapi.ResourcePath(getResourceQuotasResoureName(), ns, ""),
-			Query:  buildQueryValues(ns, nil),
+			Query:  buildQueryValues(nil),
 			Body:   resourceQuota,
 		},
 		Response: Response{StatusCode: 200, Body: resourceQuota},
@@ -85,7 +85,7 @@ func TestResourceQuotaGet(t *testing.T) {
 		Request: testRequest{
 			Method: "GET",
 			Path:   testapi.ResourcePath(getResourceQuotasResoureName(), ns, "abc"),
-			Query:  buildQueryValues(ns, nil),
+			Query:  buildQueryValues(nil),
 			Body:   nil,
 		},
 		Response: Response{StatusCode: 200, Body: resourceQuota},
@@ -109,7 +109,7 @@ func TestResourceQuotaList(t *testing.T) {
 		Request: testRequest{
 			Method: "GET",
 			Path:   testapi.ResourcePath(getResourceQuotasResoureName(), ns, ""),
-			Query:  buildQueryValues(ns, nil),
+			Query:  buildQueryValues(nil),
 			Body:   nil,
 		},
 		Response: Response{StatusCode: 200, Body: resourceQuotaList},
@@ -138,7 +138,7 @@ func TestResourceQuotaUpdate(t *testing.T) {
 		},
 	}
 	c := &testClient{
-		Request:  testRequest{Method: "PUT", Path: testapi.ResourcePath(getResourceQuotasResoureName(), ns, "abc"), Query: buildQueryValues(ns, nil)},
+		Request:  testRequest{Method: "PUT", Path: testapi.ResourcePath(getResourceQuotasResoureName(), ns, "abc"), Query: buildQueryValues(nil)},
 		Response: Response{StatusCode: 200, Body: resourceQuota},
 	}
 	response, err := c.Setup().ResourceQuotas(ns).Update(resourceQuota)
@@ -168,7 +168,7 @@ func TestResourceQuotaStatusUpdate(t *testing.T) {
 		Request: testRequest{
 			Method: "PUT",
 			Path:   testapi.ResourcePath(getResourceQuotasResoureName(), ns, "abc") + "/status",
-			Query:  buildQueryValues(ns, nil)},
+			Query:  buildQueryValues(nil)},
 		Response: Response{StatusCode: 200, Body: resourceQuota},
 	}
 	response, err := c.Setup().ResourceQuotas(ns).UpdateStatus(resourceQuota)
@@ -178,7 +178,7 @@ func TestResourceQuotaStatusUpdate(t *testing.T) {
 func TestResourceQuotaDelete(t *testing.T) {
 	ns := api.NamespaceDefault
 	c := &testClient{
-		Request:  testRequest{Method: "DELETE", Path: testapi.ResourcePath(getResourceQuotasResoureName(), ns, "foo"), Query: buildQueryValues(ns, nil)},
+		Request:  testRequest{Method: "DELETE", Path: testapi.ResourcePath(getResourceQuotasResoureName(), ns, "foo"), Query: buildQueryValues(nil)},
 		Response: Response{StatusCode: 200},
 	}
 	err := c.Setup().ResourceQuotas(ns).Delete("foo")

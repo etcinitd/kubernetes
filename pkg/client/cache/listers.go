@@ -19,9 +19,9 @@ package cache
 import (
 	"fmt"
 
-	"github.com/GoogleCloudPlatform/kubernetes/pkg/api"
-	"github.com/GoogleCloudPlatform/kubernetes/pkg/labels"
 	"github.com/golang/glog"
+	"k8s.io/kubernetes/pkg/api"
+	"k8s.io/kubernetes/pkg/labels"
 )
 
 //  TODO: generate these classes and methods for all resources of interest using
@@ -172,13 +172,13 @@ func (s *StoreToNodeLister) GetNodeInfo(id string) (*api.Node, error) {
 	return minion.(*api.Node), nil
 }
 
-// StoreToControllerLister gives a store List and Exists methods. The store must contain only ReplicationControllers.
-type StoreToControllerLister struct {
+// StoreToReplicationControllerLister gives a store List and Exists methods. The store must contain only ReplicationControllers.
+type StoreToReplicationControllerLister struct {
 	Store
 }
 
 // Exists checks if the given rc exists in the store.
-func (s *StoreToControllerLister) Exists(controller *api.ReplicationController) (bool, error) {
+func (s *StoreToReplicationControllerLister) Exists(controller *api.ReplicationController) (bool, error) {
 	_, exists, err := s.Store.Get(controller)
 	if err != nil {
 		return false, err
@@ -186,17 +186,17 @@ func (s *StoreToControllerLister) Exists(controller *api.ReplicationController) 
 	return exists, nil
 }
 
-// StoreToControllerLister lists all controllers in the store.
+// StoreToReplicationControllerLister lists all controllers in the store.
 // TODO: converge on the interface in pkg/client
-func (s *StoreToControllerLister) List() (controllers []api.ReplicationController, err error) {
+func (s *StoreToReplicationControllerLister) List() (controllers []api.ReplicationController, err error) {
 	for _, c := range s.Store.List() {
 		controllers = append(controllers, *(c.(*api.ReplicationController)))
 	}
 	return controllers, nil
 }
 
-// GetPodControllers returns a list of controllers managing a pod. Returns an error only if no matching controllers are found.
-func (s *StoreToControllerLister) GetPodControllers(pod *api.Pod) (controllers []api.ReplicationController, err error) {
+// GetPodControllers returns a list of replication controllers managing a pod. Returns an error only if no matching controllers are found.
+func (s *StoreToReplicationControllerLister) GetPodControllers(pod *api.Pod) (controllers []api.ReplicationController, err error) {
 	var selector labels.Selector
 	var rc api.ReplicationController
 
@@ -266,4 +266,27 @@ func (s *StoreToServiceLister) GetPodServices(pod *api.Pod) (services []api.Serv
 	return
 }
 
-// TODO: add StoreToEndpointsLister for use in kube-proxy.
+// StoreToEndpointsLister makes a Store that lists endpoints.
+type StoreToEndpointsLister struct {
+	Store
+}
+
+// List lists all endpoints in the store.
+func (s *StoreToEndpointsLister) List() (services api.EndpointsList, err error) {
+	for _, m := range s.Store.List() {
+		services.Items = append(services.Items, *(m.(*api.Endpoints)))
+	}
+	return services, nil
+}
+
+// GetServiceEndpoints returns the endpoints of a service, matched on service name.
+func (s *StoreToEndpointsLister) GetServiceEndpoints(svc *api.Service) (ep api.Endpoints, err error) {
+	for _, m := range s.Store.List() {
+		ep = *m.(*api.Endpoints)
+		if svc.Name == ep.Name && svc.Namespace == ep.Namespace {
+			return ep, nil
+		}
+	}
+	err = fmt.Errorf("Could not find endpoints for service: %v", svc.Name)
+	return
+}

@@ -23,9 +23,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/GoogleCloudPlatform/kubernetes/pkg/api"
-	"github.com/GoogleCloudPlatform/kubernetes/pkg/fields"
-	"github.com/GoogleCloudPlatform/kubernetes/pkg/labels"
+	"k8s.io/kubernetes/pkg/api"
+	"k8s.io/kubernetes/pkg/fields"
+	"k8s.io/kubernetes/pkg/labels"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -97,9 +97,10 @@ func ClusterLevelLoggingWithElasticsearch(f *Framework) {
 	var statusCode float64
 	var esResponse map[string]interface{}
 	err = nil
+	var body []byte
 	for start := time.Now(); time.Since(start) < graceTime; time.Sleep(5 * time.Second) {
 		// Query against the root URL for Elasticsearch.
-		body, err := f.Client.Get().
+		body, err = f.Client.Get().
 			Namespace(api.NamespaceSystem).
 			Prefix("proxy").
 			Resource("services").
@@ -143,7 +144,6 @@ func ClusterLevelLoggingWithElasticsearch(f *Framework) {
 	// Now assume we really are talking to an Elasticsearch instance.
 	// Check the cluster health.
 	By("Checking health of Elasticsearch service.")
-	var body []byte
 	for start := time.Now(); time.Since(start) < graceTime; time.Sleep(5 * time.Second) {
 		body, err = f.Client.Get().
 			Namespace(api.NamespaceSystem).
@@ -269,7 +269,7 @@ func ClusterLevelLoggingWithElasticsearch(f *Framework) {
 		}
 
 		// Ask Elasticsearch to return all the log lines that were tagged with the underscore
-		// verison of the name. Ask for twice as many log lines as we expect to check for
+		// version of the name. Ask for twice as many log lines as we expect to check for
 		// duplication bugs.
 		body, err = f.Client.Get().
 			Namespace(api.NamespaceSystem).

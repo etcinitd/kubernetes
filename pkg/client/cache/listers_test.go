@@ -19,9 +19,9 @@ package cache
 import (
 	"testing"
 
-	"github.com/GoogleCloudPlatform/kubernetes/pkg/api"
-	"github.com/GoogleCloudPlatform/kubernetes/pkg/labels"
-	"github.com/GoogleCloudPlatform/kubernetes/pkg/util"
+	"k8s.io/kubernetes/pkg/api"
+	"k8s.io/kubernetes/pkg/labels"
+	"k8s.io/kubernetes/pkg/util"
 )
 
 func TestStoreToMinionLister(t *testing.T) {
@@ -45,9 +45,9 @@ func TestStoreToMinionLister(t *testing.T) {
 	}
 }
 
-func TestStoreToControllerLister(t *testing.T) {
+func TestStoreToReplicationControllerLister(t *testing.T) {
 	store := NewStore(MetaNamespaceKeyFunc)
-	lister := StoreToControllerLister{store}
+	lister := StoreToReplicationControllerLister{store}
 	testCases := []struct {
 		inRCs      []*api.ReplicationController
 		list       func() ([]api.ReplicationController, error)

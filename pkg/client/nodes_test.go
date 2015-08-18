@@ -20,11 +20,11 @@ import (
 	"net/url"
 	"testing"
 
-	"github.com/GoogleCloudPlatform/kubernetes/pkg/api"
-	"github.com/GoogleCloudPlatform/kubernetes/pkg/api/resource"
-	"github.com/GoogleCloudPlatform/kubernetes/pkg/api/testapi"
-	"github.com/GoogleCloudPlatform/kubernetes/pkg/fields"
-	"github.com/GoogleCloudPlatform/kubernetes/pkg/labels"
+	"k8s.io/kubernetes/pkg/api"
+	"k8s.io/kubernetes/pkg/api/resource"
+	"k8s.io/kubernetes/pkg/api/testapi"
+	"k8s.io/kubernetes/pkg/fields"
+	"k8s.io/kubernetes/pkg/labels"
 )
 
 func getNodesResourceName() string {
@@ -44,13 +44,12 @@ func TestListMinions(t *testing.T) {
 }
 
 func TestListMinionsLabels(t *testing.T) {
-	ns := api.NamespaceNone
 	labelSelectorQueryParamName := api.LabelSelectorQueryParam(testapi.Version())
 	c := &testClient{
 		Request: testRequest{
 			Method: "GET",
 			Path:   testapi.ResourcePath(getNodesResourceName(), "", ""),
-			Query:  buildQueryValues(ns, url.Values{labelSelectorQueryParamName: []string{"foo=bar,name=baz"}})},
+			Query:  buildQueryValues(url.Values{labelSelectorQueryParamName: []string{"foo=bar,name=baz"}})},
 		Response: Response{
 			StatusCode: 200,
 			Body: &api.NodeList{

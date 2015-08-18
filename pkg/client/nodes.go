@@ -19,10 +19,10 @@ package client
 import (
 	"fmt"
 
-	"github.com/GoogleCloudPlatform/kubernetes/pkg/api"
-	"github.com/GoogleCloudPlatform/kubernetes/pkg/fields"
-	"github.com/GoogleCloudPlatform/kubernetes/pkg/labels"
-	"github.com/GoogleCloudPlatform/kubernetes/pkg/watch"
+	"k8s.io/kubernetes/pkg/api"
+	"k8s.io/kubernetes/pkg/fields"
+	"k8s.io/kubernetes/pkg/labels"
+	"k8s.io/kubernetes/pkg/watch"
 )
 
 type NodesInterface interface {
@@ -49,12 +49,8 @@ func newNodes(c *Client) *nodes {
 	return &nodes{c}
 }
 
-// resourceName returns node's URL resource name based on resource version.
-// Uses "minions" as the URL resource name for v1beta1 and v1beta2.
+// resourceName returns node's URL resource name.
 func (c *nodes) resourceName() string {
-	if api.PreV1Beta3(c.r.APIVersion()) {
-		return "minions"
-	}
 	return "nodes"
 }
 

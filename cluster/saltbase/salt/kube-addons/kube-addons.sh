@@ -22,6 +22,7 @@ KUBECTL=${KUBECTL_BIN:-/usr/local/bin/kubectl}
 ADDON_CHECK_INTERVAL_SEC=${TEST_ADDON_CHECK_INTERVAL_SEC:-600}
 
 SYSTEM_NAMESPACE=kube-system
+token_dir=${TOKEN_DIR:-/srv/kubernetes}
 
 function create-kubeconfig-secret() {
   local -r token=$1
@@ -141,16 +142,17 @@ for k,v in yaml.load(sys.stdin).iteritems():
 ''' < "${kube_env_yaml}")
 fi
 
-# Wait for the default service account
+# Create the namespace that will be used to host the cluster-level add-ons.
+start_addon /etc/kubernetes/addons/namespace.yaml 100 10 "" &
+
+# Wait for the default service account to be created in the kube-system namespace.
 token_found=""
 while [ -z "${token_found}" ]; do
   sleep .5
-  token_found=$(${KUBECTL} get serviceaccount default -o template -t "{{with index .secrets 0}}{{.name}}{{end}}" || true)
+  token_found=$(${KUBECTL} get --namespace="${SYSTEM_NAMESPACE}" serviceaccount default -o template -t "{{with index .secrets 0}}{{.name}}{{end}}" || true)
 done
 
-echo "== default service account has token ${token_found} =="
-
-start_addon /etc/kubernetes/addons/namespace.yaml 100 10 "" &
+echo "== default service account in the ${SYSTEM_NAMESPACE} namespace has token ${token_found} =="
 
 # Generate secrets for "internal service accounts".
 # TODO(etune): move to a completely yaml/object based
@@ -173,7 +175,7 @@ while read line; do
     # do not have DNS available will have to override the server.
     create-kubeconfig-secret "${token}" "${username}" "https://kubernetes.default"
   fi
-done < /srv/kubernetes/known_tokens.csv
+done < ${token_dir}/known_tokens.csv
 
 # Create admission_control objects if defined before any other addon services. If the limits
 # are defined in a namespace other than default, we should still create the limits for the

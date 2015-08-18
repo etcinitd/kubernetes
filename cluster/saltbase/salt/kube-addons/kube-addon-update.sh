@@ -25,7 +25,7 @@
 # LIMITATIONS
 # 1. controllers are not updated unless their name is changed
 # 3. Services will not be updated unless their name is changed,
-#    but for services we acually want updates without name change.
+#    but for services we actually want updates without name change.
 # 4. Json files are not handled at all. Currently addons must be
 #    in yaml files
 # 5. exit code is probably not always correct (I haven't checked
@@ -44,7 +44,9 @@
 
 
 # global config
-KUBECTL=${TEST_KUBECTL:-/usr/local/bin/kubectl}   # substitute for tests
+KUBECTL=${TEST_KUBECTL:-}   # substitute for tests
+KUBECTL=${KUBECTL:-${KUBECTL_BIN:-}}
+KUBECTL=${KUBECTL:-/usr/local/bin/kubectl}
 if [[ ! -x ${KUBECTL} ]]; then
     echo "ERROR: kubectl command (${KUBECTL}) not found or is not executable" 1>&2
     exit 1
@@ -162,7 +164,11 @@ function wait-for-jobs() {
     local rv=0
     local pid
     for pid in $(jobs -p); do
-        wait ${pid} || (rv=1; log ERR "error in pid ${pid}")
+        wait ${pid}
+        if [[ $? -ne 0 ]]; then
+            rv=1;
+            log ERR "error in pid ${pid}"
+        fi
         log DB2 "pid ${pid} completed, current error code: ${rv}"
     done
     return ${rv}
